@@ -1,0 +1,54 @@
+name: Build static SyntaxCore
+
+on:
+  push:
+    branches: [main, codex/binary-artifact]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (X.Y.Z; leave empty to test only)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
+      - name: Test source package
+        run: swift test --configuration release
+      - name: Build static XCFramework
+        run: python3 scripts/build_binary.py
+      - name: Test binary consumer
+        run: python3 scripts/smoke_binary.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SyntaxCore-xcframework
+          path: dist/SyntaxCore.xcframework.zip
+      - name: Publish binary package tag and release
+        if: github.event_name == 'workflow_dispatch' && inputs.version != '' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          checksum=$(swift package compute-checksum dist/SyntaxCore.xcframework.zip)
+          python3 scripts/write_release_manifest.py "$VERSION" "$checksum"
+          cp Package.swift /tmp/SyntaxCore-release-Package.swift
+          git switch --orphan "binary/$VERSION"
+          git rm -rfq .
+          cp /tmp/SyntaxCore-release-Package.swift Package.swift
+          git add Package.swift
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Binary release $VERSION"
+          git push origin "HEAD:refs/heads/binary/$VERSION"
+          gh release create "$VERSION" dist/SyntaxCore.xcframework.zip --target "$(git rev-parse HEAD)" --title "$VERSION" --notes "Static SyntaxCore XCFramework for macOS arm64 and x86_64."
