@@ -15,13 +15,13 @@ pathlib.Path("Package.swift").write_text(f'''// swift-tools-version: 6.2
 import PackageDescription
 
 let package = Package(
-    name: "commander-tree-sitter",
+    name: "commander-syntax-highlighting",
     platforms: [.macOS(.v13)],
     products: [.library(name: "SyntaxCore", targets: ["SyntaxCore"])],
     targets: [
         .binaryTarget(
             name: "SyntaxCore",
-            url: "https://github.com/inikolaev/commander-tree-sitter/releases/download/{version}/SyntaxCore.xcframework.zip",
+            url: "https://github.com/inikolaev/commander-syntax-highlighting/releases/download/{version}/SyntaxCore.xcframework.zip",
             checksum: "{checksum}"
         ),
     ]
