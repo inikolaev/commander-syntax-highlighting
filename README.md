@@ -12,12 +12,15 @@ plugins, while adding a built-in parser requires a new version of this package.
 
 All generated parsers, their Swift C headers, and the Swift bindings are copied
 from the exact revisions recorded in `UPSTREAM-PINS.json`. See `Licenses/` for
-upstream license text. To update the sources after resolving new pins in Commander:
+upstream license text. To update a grammar or the Swift bindings, edit its
+revision (and version, where applicable) in `UPSTREAM-PINS.json`, then run:
 
 ```sh
-python3 scripts/vendor.py /path/to/commander/.build/checkouts
+python3 scripts/vendor.py --fetch
 swift build
 ```
 
-Review the source and license diff, then release a new tag. Grammar query files
-are not included because Commander carries its own highlight queries.
+For a new language, also add its module to `Package.swift` and `GRAMMARS` in
+`scripts/vendor.py`. Review the source and license diff, run Commander's syntax
+tests, then release a new tag. Grammar query files are not included because
+Commander carries its own highlight queries.

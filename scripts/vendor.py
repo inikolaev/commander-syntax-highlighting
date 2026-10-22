@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Copy the pinned Tree-sitter sources from a resolved Commander checkout.
+"""Refresh vendored sources from UPSTREAM-PINS.json.
 
-Run from this repository with a populated Commander `.build/checkouts` directory:
-    python3 scripts/vendor.py /path/to/commander/.build/checkouts
+Use --fetch to download the pinned revisions, or pass an existing directory of
+checkouts with those exact revisions. Neither mode changes the pin file.
 """
 
+import argparse
+import json
 import shutil
-import sys
 import stat
+import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -43,7 +46,43 @@ def copy_file(source: Path, destination: Path) -> None:
     destination.chmod(destination.stat().st_mode | stat.S_IWUSR)
 
 
+def pinned_sources() -> dict[str, dict]:
+    pins = json.loads((ROOT / "UPSTREAM-PINS.json").read_text())["pins"]
+    by_name = {pin["identity"].lower(): pin for pin in pins}
+    names = {"tree-sitter", "SwiftTreeSitter"} | {value[0] for value in GRAMMARS.values()}
+    missing = {name for name in names if name.lower() not in by_name}
+    if missing:
+        raise RuntimeError(f"Missing upstream pins: {sorted(missing)}")
+    return {name: by_name[name.lower()] for name in names}
+
+
+def verify_checkout(source: Path, revision: str) -> None:
+    if not source.is_dir():
+        raise RuntimeError(f"Missing checkout: {source}")
+    result = subprocess.run(
+        ["git", "-C", str(source), "rev-parse", "HEAD"],
+        check=True, capture_output=True, text=True,
+    )
+    if result.stdout.strip() != revision:
+        raise RuntimeError(f"Wrong revision in {source}: expected {revision}, got {result.stdout.strip()}")
+
+
+def fetch_sources(destination: Path, pins: dict[str, dict]) -> None:
+    for name, pin in sorted(pins.items()):
+        source = destination / name
+        revision = pin["state"]["revision"]
+        url = pin["location"]
+        subprocess.run(["git", "init", "-q", str(source)], check=True)
+        subprocess.run(["git", "-C", str(source), "remote", "add", "origin", url], check=True)
+        subprocess.run(["git", "-C", str(source), "fetch", "-q", "--depth=1", "origin", revision], check=True)
+        subprocess.run(["git", "-C", str(source), "checkout", "-q", "--detach", "FETCH_HEAD"], check=True)
+        verify_checkout(source, revision)
+
+
 def main(checkouts: Path) -> None:
+    for name, pin in pinned_sources().items():
+        verify_checkout(checkouts / name, pin["state"]["revision"])
+
     runtime = checkouts / "tree-sitter"
     target = ROOT / "Sources/TreeSitter"
     shutil.rmtree(target, ignore_errors=True)
@@ -96,6 +135,15 @@ def main(checkouts: Path) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        raise SystemExit(__doc__)
-    main(Path(sys.argv[1]).resolve())
+    parser = argparse.ArgumentParser(description=__doc__)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--fetch", action="store_true", help="fetch every pin into a temporary directory")
+    source.add_argument("--checkouts", type=Path, help="use existing checkouts at the pinned revisions")
+    args = parser.parse_args()
+    if args.fetch:
+        with tempfile.TemporaryDirectory(prefix="commander-tree-sitter-") as temp:
+            checkouts = Path(temp)
+            fetch_sources(checkouts, pinned_sources())
+            main(checkouts)
+    else:
+        main(args.checkouts.resolve())
