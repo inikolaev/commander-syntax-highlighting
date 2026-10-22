@@ -45,8 +45,8 @@ jobs:
           checksum=$(swift package compute-checksum dist/SyntaxCore.xcframework.zip)
           python3 scripts/write_release_manifest.py "$VERSION" "$checksum"
           cp Package.swift /tmp/SyntaxCore-release-Package.swift
+          git restore Package.swift
           git switch --orphan "binary/$VERSION"
-          git rm -rfq .
           cp /tmp/SyntaxCore-release-Package.swift Package.swift
           git add Package.swift
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Binary release $VERSION"
