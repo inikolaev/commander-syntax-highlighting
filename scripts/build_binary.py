@@ -34,7 +34,11 @@ def main():
     modules = framework / "Modules" / "SyntaxCore.swiftmodule"
     modules.mkdir(parents=True)
     libs = [ROOT / ".build" / f"{arch}-apple-macosx" / "release" / "libSyntaxCore.a" for arch in ARCHES]
-    run("lipo", "-create", *(str(lib) for lib in libs), "-output", str(framework / "SyntaxCore"))
+    binary = framework / "SyntaxCore"
+    run("lipo", "-create", *(str(lib) for lib in libs), "-output", str(binary))
+    # SwiftPM's C dependencies embed runner-local Clang module cache paths in DWARF.
+    # Release archives do not ship those caches, so omit the debug records.
+    run("strip", "-S", str(binary))
 
     for arch in ARCHES:
         build = ROOT / ".build" / f"{arch}-apple-macosx" / "release"
