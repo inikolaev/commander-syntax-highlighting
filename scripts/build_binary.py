@@ -39,7 +39,6 @@ def main():
     for arch in ARCHES:
         build = ROOT / ".build" / f"{arch}-apple-macosx" / "release"
         shutil.copy2(build / "Modules" / "SyntaxCore.swiftinterface", modules / f"{arch}-apple-macos.swiftinterface")
-        shutil.copy2(build / "Modules" / "SyntaxCore.swiftmodule", modules / f"{arch}-apple-macos.swiftmodule")
         shutil.copy2(build / "Modules" / "SyntaxCore.swiftdoc", modules / f"{arch}-apple-macos.swiftdoc")
 
     (framework / "Info.plist").write_bytes(plistlib.dumps({
